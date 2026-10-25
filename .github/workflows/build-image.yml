@@ -1,11 +1,11 @@
 name: Build RetroStick Image
 
 on:
-  workflow_dispatch: # Allows you to manually trigger the build with a button click
+  workflow_dispatch: 
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04 # Using a highly stable, compatible Ubuntu release
 
     steps:
     - name: Checkout Code
@@ -13,19 +13,20 @@ jobs:
       with:
         submodules: 'recursive'
 
-    - name: Install Dependencies
+    - name: Install System Dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y git make gcc build-essential genext2fs e2fsprogs
+        sudo apt-get install -y git make gcc g++ build-essential genext2fs e2fsprogs cpio u-boot-tools libncurses5-dev
 
-    - name: Run Build Script
+    - name: Compile RetroArch and System Files
       run: |
-        chmod +x build.sh
-        ./build.sh
+        # Bypass the repository's docker wrapper and call make targets natively
+        cd src
+        make all
 
     - name: Pack RootFS Image
       run: |
-        # Creates a raw 512MB ext4 file from the compiled rootfs folder
+        # Creates a raw 512MB ext4 partition image from the newly compiled rootfs folder
         dd if=/dev/zero of=retrostick_rootfs.img bs=1M count=512
         mkfs.ext4 -F -d rootfs/ retrostick_rootfs.img
 
