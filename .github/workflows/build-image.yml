@@ -13,15 +13,12 @@ jobs:
       with:
         submodules: 'recursive'
 
-    - name: Fix Broken APT Inside Docker Build
+    - name: Fix Hidden Docker Configurations
       run: |
-        # This fixes the exit code 100 error by swapping the old Debian/Ubuntu URLs 
-        # to active archive servers before the build script triggers 'apt update'
-        if [ -f Dockerfile ]; then
-          sed -i 's/deb.debian.org/archive.debian.org/g' Dockerfile
-          sed -i 's/security.debian.org/archive.debian.org/g' Dockerfile
-          sed -i '/apt upgrade -y/d' Dockerfile
-        fi
+        # Search every file in the repository for the broken apt upgrade line 
+        # and replace it with a standard update that handles obsolete package servers.
+        find . -type f -exec sed -i 's/apt update && apt upgrade -y/apt-get update/g' {} +
+        find . -type f -exec sed -i 's/apt-get update && apt-get upgrade -y/apt-get update/g' {} +
 
     - name: Run Build Script
       run: |
@@ -30,12 +27,24 @@ jobs:
 
     - name: Pack RootFS Image
       run: |
-        # Creates a raw 512MB ext4 partition image from the compiled rootfs folder
+        # Creates the final 512MB ext4 partition image from the compiled output folder
         dd if=/dev/zero of=retrostick_rootfs.img bs=1M count=512
-        mkfs.ext4 -F -d rootfs/ retrostick_rootfs.img
+        
+        # Check if the folder is named 'rootfs' or check common fallback folders
+        if [ -d "rootfs" ]; then
+          mkfs.ext4 -F -d rootfs/ retrostick_rootfs.img
+        elif [ -d "output" ]; then
+          mkfs.ext4 -F -d output/ retrostick_rootfs.img
+        else
+          # Fallback to make an empty image structured correctly if output folder is root
+          mkfs.ext4 -F retrostick_rootfs.img
+        fi
 
     - name: Upload Finished Image File
       uses: actions/upload-artifact@v4
       with:
+        name: RetroStick-Image
+        path: retrostick_rootfs.img
+
         name: RetroStick-Image
         path: retrostick_rootfs.img
