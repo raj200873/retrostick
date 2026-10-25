@@ -15,8 +15,6 @@ jobs:
 
     - name: Fix Hidden Docker Configurations
       run: |
-        # Search every file in the repository for the broken apt upgrade line 
-        # and replace it with a standard update that handles obsolete package servers.
         find . -type f -exec sed -i 's/apt update && apt upgrade -y/apt-get update/g' {} +
         find . -type f -exec sed -i 's/apt-get update && apt-get upgrade -y/apt-get update/g' {} +
 
@@ -27,16 +25,12 @@ jobs:
 
     - name: Pack RootFS Image
       run: |
-        # Creates the final 512MB ext4 partition image from the compiled output folder
         dd if=/dev/zero of=retrostick_rootfs.img bs=1M count=512
-        
-        # Check if the folder is named 'rootfs' or check common fallback folders
         if [ -d "rootfs" ]; then
           mkfs.ext4 -F -d rootfs/ retrostick_rootfs.img
         elif [ -d "output" ]; then
           mkfs.ext4 -F -d output/ retrostick_rootfs.img
         else
-          # Fallback to make an empty image structured correctly if output folder is root
           mkfs.ext4 -F retrostick_rootfs.img
         fi
 
@@ -46,5 +40,3 @@ jobs:
         name: RetroStick-Image
         path: retrostick_rootfs.img
 
-        name: RetroStick-Image
-        path: retrostick_rootfs.img
