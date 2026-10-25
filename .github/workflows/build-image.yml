@@ -1,0 +1,36 @@
+name: Build RetroStick Image
+
+on:
+  workflow_dispatch: # Allows you to manually trigger the build with a button click
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+      with:
+        submodules: 'recursive'
+
+    - name: Install Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y git make gcc build-essential genext2fs e2fsprogs
+
+    - name: Run Build Script
+      run: |
+        chmod +x build.sh
+        ./build.sh
+
+    - name: Pack RootFS Image
+      run: |
+        # Creates a raw 512MB ext4 file from the compiled rootfs folder
+        dd if=/dev/zero of=retrostick_rootfs.img bs=1M count=512
+        mkfs.ext4 -F -d rootfs/ retrostick_rootfs.img
+
+    - name: Upload Finished Image File
+      uses: actions/upload-artifact@v4
+      with:
+        name: RetroStick-Image
+        path: retrostick_rootfs.img
