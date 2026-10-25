@@ -5,7 +5,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-22.04 # Using a highly stable, compatible Ubuntu release
+    runs-on: ubuntu-latest
 
     steps:
     - name: Checkout Code
@@ -13,20 +13,24 @@ jobs:
       with:
         submodules: 'recursive'
 
-    - name: Install System Dependencies
+    - name: Fix Broken APT Inside Docker Build
       run: |
-        sudo apt-get update
-        sudo apt-get install -y git make gcc g++ build-essential genext2fs e2fsprogs cpio u-boot-tools libncurses5-dev
+        # This fixes the exit code 100 error by swapping the old Debian/Ubuntu URLs 
+        # to active archive servers before the build script triggers 'apt update'
+        if [ -f Dockerfile ]; then
+          sed -i 's/deb.debian.org/archive.debian.org/g' Dockerfile
+          sed -i 's/security.debian.org/archive.debian.org/g' Dockerfile
+          sed -i '/apt upgrade -y/d' Dockerfile
+        fi
 
-    - name: Compile RetroArch and System Files
+    - name: Run Build Script
       run: |
-        # Bypass the repository's docker wrapper and call make targets natively
-        cd src
-        make all
+        chmod +x build.sh
+        ./build.sh
 
     - name: Pack RootFS Image
       run: |
-        # Creates a raw 512MB ext4 partition image from the newly compiled rootfs folder
+        # Creates a raw 512MB ext4 partition image from the compiled rootfs folder
         dd if=/dev/zero of=retrostick_rootfs.img bs=1M count=512
         mkfs.ext4 -F -d rootfs/ retrostick_rootfs.img
 
