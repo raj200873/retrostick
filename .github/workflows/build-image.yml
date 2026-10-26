@@ -1,55 +1,13 @@
-name: Build RetroStick Image
-
-on:
-  workflow_dispatch: 
-
-jobs:
-  build:
-    runs-on: ubuntu-latest
-
     steps:
-    - name: Checkout Code
-      uses: actions/checkout@v4
-      with:
-        submodules: 'recursive'
+      - name: Checkout project source code
+        uses: actions/checkout@v3
 
-    - name: Clean Docker Dependencies from Build Script
-      run: |
-        # Strip out the broken container builder so it compiles locally
-        if [ -f build.sh ]; then
-          sed -i 's/docker run/# docker run/g' build.sh
-          sed -i 's/docker build/# docker build/g' build.sh
-        fi
+      - name: Install low-level dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y genisoimage isolinux syslinux-common
 
-    - name: Install System Compilation Tools
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y openssl git make autoconf automake libtool squashfs-tools \
-          gcc g++ build-essential genext2fs e2fsprogs cpio u-boot-tools libncurses5-dev \
-          pkg-config libssl-dev
-
-    - name: Run Build Script Natively
-      run: |
-        chmod +x build.sh
-        # Run the build sequence natively on the updated cloud runner
-        ./build.sh || true
-
-    - name: Pack RootFS Image
-      run: |
-        dd if=/dev/zero of=retrostick_rootfs.img bs=1M count=512
-        # Dynamically targets whatever directory the builder populates
-        if [ -d "rootfs" ]; then
-          mkfs.ext4 -F -d rootfs/ retrostick_rootfs.img
-        elif [ -d "output/rootfs" ]; then
-          mkfs.ext4 -F -d output/rootfs/ retrostick_rootfs.img
-        elif [ -d "output" ]; then
-          mkfs.ext4 -F -d output/ retrostick_rootfs.img
-        else
-          mkfs.ext4 -F retrostick_rootfs.img
-        fi
-
-    - name: Upload Finished Image File
-      uses: actions/upload-artifact@v4
-      with:
-        name: RetroStick-Image
-        path: retrostick_rootfs.img
+      - name: Execute ISO compilation script
+        run: |
+          chmod +x ./build_iso.sh
+          ./build_iso.sh
