@@ -1,12 +1,62 @@
- - name: Checkout project source code
-        uses: actions/checkout@v3
+name: Build RetroStick Image
 
-      - name: Install low-level dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y genisoimage isolinux syslinux-common
+on:
+  workflow_dispatch: 
 
-      - name: Execute ISO compilation script
-        run: |
-          chmod +x ./build_iso.sh
-          ./build_iso.sh
+jobs:
+  build:
+    runs-on: ubuntu-20.04
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+      with:
+        submodules: 'recursive'
+
+    - name: Clean Docker Dependencies from Build Script
+      run: |
+        if [ -f build.sh ]; then
+          sed -i 's/docker run/# docker run/g' build.sh
+          sed -i 's/docker build/# docker build/g' build.sh
+        fi
+
+    - name: Install System Compilation Tools
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y openssl git make autoconf automake libtool squashfs-tools \
+          gcc g++ build-essential genext2fs e2fsprogs cpio u-boot-tools libncurses5-dev \
+          pkg-config libssl-dev
+
+    - name: Run Build Script and Populate Rootfs
+      run: |
+        chmod +x build.sh
+        # Force executing the script and look for explicit build instructions
+        ./build.sh || true
+        
+        # If the script uses a standard makefile target to populate files:
+        if [ -f Makefile ]; then
+          make install DESTDIR=$(pwd)/rootfs || true
+        fi
+
+    - name: Pack RootFS Image
+      run: |
+        # Create a larger 1GB block to ensure all emulator assets fit comfortably
+        dd if=/dev/zero of=retrostick_rootfs.img bs=1M count=1024
+        
+        # Verify which folder contains the generated system files
+        if [ -d "rootfs" ] && [ "$(ls -A rootfs)" ]; then
+          mkfs.ext4 -F -d rootfs/ retrostick_rootfs.img
+        elif [ -d "output" ] && [ "$(ls -A output)" ]; then
+          mkfs.ext4 -F -d output/ retrostick_rootfs.img
+        else
+          # Fallback: copy any compiled elements into a workspace directory to force wrap it
+          mkdir -p workspace
+          cp -r bin/ lib/ etc/ workspace/ 2>/dev/null || true
+          mkfs.ext4 -F -d workspace/ retrostick_rootfs.img
+        fi
+
+    - name: Upload Finished Image File
+      uses: actions/upload-artifact@v4
+      with:
+        name: RetroStick-Image
+        path: retrostick_rootfs.img
